@@ -12,11 +12,12 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    mem_limit: 1g
 
   payment_service:
     build:
-      context: https://github.com/<your_github_org>/payment_service.git#main  # Replace with your repo
-      dockerfile: Dockerfile
+      context: ../payments/ #https://github.com/event-ticketing-system/payments.git#master  # Replace with your repo
+      dockerfile: ./backend/Dockerfile
     container_name: payment_service
     ports:
       - "8001:8000"
@@ -31,22 +32,23 @@ services:
 
   notification_service:
     build:
-      context: https://github.com/<your_github_org>/notification_service.git#main  # Replace with your repo
-      dockerfile: Dockerfile
+      context: ../notifications/ #https://github.com/event-ticketing-system/notifications.git#master  # Replace with your repo
+      dockerfile: ./backend/Dockerfile
     container_name: notification_service
     ports:
-      - "8003:8003"
+      - "8003:8000"
     networks:
       - event-platform
     environment:
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
     depends_on:
       - rabbitmq
+    mem_limit: 512m
 
   order_service:
     build:
-      context: https://github.com/<your_github_org>/order_service.git#main  # Replace with your repo
-      dockerfile: Dockerfile  #  Dockerfile in the order_service repo
+      context: ../orders/ #https://github.com/event-ticketing-system/orders.git#master  # Replace with your repo
+      dockerfile: ./backend/Dockerfile  #  Dockerfile in the order_service repo
     container_name: order_service
     ports:
       - "8002:8000"  # Expose the order service on port 8002
@@ -87,11 +89,78 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: order_db
 
+  catalog_backend:
+    build:
+      context: ../catalog/
+      dockerfile: Dockerfile.backend 
+    container_name: catalog_backend_srv
+    env_file:
+      - ../catalog/backend/.env
+    ports:
+      - "8004:8000"
+    depends_on:
+      - cat_mongo_db
+    volumes:
+      - .:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  catalog_frontend:
+    build:
+      context: ../catalog/ #https://github.com/event-ticketing-system/orders.git#master  # Replace with your repo
+      dockerfile: Dockerfile.frontend 
+    container_name: catalog_frontend
+    ports:
+      - "3001:3000"
+    working_dir: /app # Set the working directory to /app
+    command: ["npm", "start"]
+    depends_on:
+      - catalog_backend
+
+  cat_mongo_db:
+    image: mongo:latest
+    container_name: cat_mongo_db
+    env_file:
+      - ../catalog/.env
+    volumes:
+      - mongo_cat:/data/db
+    ports:
+      - '6001:27017'
+
+  auth_backend:
+    build:
+      context: ../jwt-auth/ #https://github.com/event-ticketing-system/orders.git#master  # Replace with your repo
+      dockerfile: ./dockerfile
+    container_name: auth_backend
+    env_file:
+      - ../jwt-auth/.env
+    ports:
+      - "8005:8000"
+    depends_on:
+      - auth_mongo_db
+    volumes:
+      - ../jwt-auth:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  auth_mongo_db:
+    image: mongo:latest
+    container_name: auth_mongo_db
+    env_file:
+      - ./.env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE_AUTH}
+    volumes:
+      - mongo_auth:/data/db
+    ports:
+      - '6000:27017'
+
 networks:
   event-platform:
-    name: event-platform
-    external: true
+    driver: bridge
 
 volumes:
   db_data:
   order_db_data:
+  mongo_auth:
+  mongo_cat:
