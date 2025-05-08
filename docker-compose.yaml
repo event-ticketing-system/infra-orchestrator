@@ -1,0 +1,97 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - event-platform
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  payment_service:
+    build:
+      context: https://github.com/<your_github_org>/payment_service.git#main  # Replace with your repo
+      dockerfile: Dockerfile
+    container_name: payment_service
+    ports:
+      - "8001:8000"
+    networks:
+      - event-platform
+    environment:
+      DATABASE_URL: "postgresql://postgres:password@db:5432/payments"  #  DB service
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
+    depends_on:
+      - rabbitmq
+      - db
+
+  notification_service:
+    build:
+      context: https://github.com/<your_github_org>/notification_service.git#main  # Replace with your repo
+      dockerfile: Dockerfile
+    container_name: notification_service
+    ports:
+      - "8003:8003"
+    networks:
+      - event-platform
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
+    depends_on:
+      - rabbitmq
+
+  order_service:
+    build:
+      context: https://github.com/<your_github_org>/order_service.git#main  # Replace with your repo
+      dockerfile: Dockerfile  #  Dockerfile in the order_service repo
+    container_name: order_service
+    ports:
+      - "8002:8000"  # Expose the order service on port 8002
+    networks:
+      - event-platform
+    environment:
+      DATABASE_URL: "postgresql://user:password@order_db:5432/order_db"  # DB
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
+    depends_on:
+      - rabbitmq
+      - order_db
+
+  db: #  PostgreSQL service for payments
+    image: postgres:13
+    container_name: db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - event-platform
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: payments
+
+  order_db: # PostgreSQL service for orders
+    image: postgres:13
+    container_name: order_db
+    volumes:
+      - order_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - event-platform
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: order_db
+
+networks:
+  event-platform:
+    name: event-platform
+    external: true
+
+volumes:
+  db_data:
+  order_db_data:
