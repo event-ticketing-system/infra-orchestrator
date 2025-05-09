@@ -14,11 +14,9 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     mem_limit: 1g
 
-  payment_service:
-    build:
-      context: ../payments/ #https://github.com/event-ticketing-system/payments.git#master  # Replace with your repo
-      dockerfile: ./backend/Dockerfile
-    container_name: payment_service
+  payment_backend_service:
+    image: palani1703/payment-backend:latest
+    container_name: payment_backend
     ports:
       - "8001:8000"
     networks:
@@ -30,10 +28,20 @@ services:
       - rabbitmq
       - db
 
+  payment_frontend_service:
+    image: palani1703/payment-frontend:latest
+    container_name: payment_frontend
+    ports:
+      - "3002:3000"
+    networks:
+      - event-platform
+    working_dir: /app
+    command: ["npm", "start"]
+    depends_on:
+      - payment_backend_service
+
   order_service:
-    build:
-      context: ../orders/ #https://github.com/event-ticketing-system/orders.git#master  # Replace with your repo
-      dockerfile: ./backend/Dockerfile  #  Dockerfile in the order_service repo
+    image: palani1703/order-srv:latest
     container_name: order_service
     ports:
       - "8002:8000"  # Expose the order service on port 8002
@@ -75,10 +83,8 @@ services:
       POSTGRES_DB: order_db
 
   catalog_backend:
-    build:
-      context: ../catalog/
-      dockerfile: Dockerfile.backend 
-    container_name: catalog_backend_srv
+    image: palani1703/catalog-backend:latest
+    container_name: catalog_backend
     env_file:
       - ../catalog/backend/.env
     ports:
@@ -95,9 +101,7 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   catalog_frontend:
-    build:
-      context: ../catalog/ #https://github.com/event-ticketing-system/orders.git#master  # Replace with your repo
-      dockerfile: Dockerfile.frontend 
+    image: palani1703/catalog-frontend:latest
     container_name: catalog_frontend
     ports:
       - "3001:3000"
@@ -112,7 +116,7 @@ services:
     image: mongo:latest
     container_name: cat_mongo_db
     env_file:
-      - ../catalog/.env
+      - ./.env.catalog
     volumes:
       - mongo_cat:/data/db
     ports:
@@ -121,9 +125,7 @@ services:
       - event-platform
 
   auth_backend:
-    build:
-      context: ../jwt-auth/ #https://github.com/event-ticketing-system/orders.git#master  # Replace with your repo
-      dockerfile: ./dockerfile
+    image: palani1703/auth-backend:latest
     container_name: auth_backend
     env_file:
       - ../jwt-auth/.env
@@ -136,12 +138,24 @@ services:
     volumes:
       - ../jwt-auth:/app
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+  
+  auth_frontend:
+    image: palani1703/auth-frontend:latest
+    container_name: auth_frontend
+    ports:
+      - "3003:3000"
+    networks:
+      - event-platform
+    working_dir: /app
+    command: ["npm", "start"]
+    depends_on:
+      - auth_backend
 
   auth_mongo_db:
     image: mongo:latest
     container_name: auth_mongo_db
     env_file:
-      - ./.env
+      - ./.env.auth
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
@@ -152,6 +166,22 @@ services:
       - '6000:27017'
     networks:
       - event-platform
+  
+  # nginx:
+  #   image: nginx:latest
+  #   container_name: nginx
+  #   ports:
+  #     - "80:80"  # Expose NGINX on port 80
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf  # Mount the custom NGINX configuration
+  #   networks:
+  #     - event-platform
+  #   depends_on:
+  #     - payment_frontend_service
+  #     - order_service
+  #     - catalog_frontend
+  #     - auth_frontend
+
 
 networks:
   event-platform:
