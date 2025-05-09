@@ -24,26 +24,11 @@ services:
     networks:
       - event-platform
     environment:
-      DATABASE_URL: "postgresql://postgres:password@db:5432/payments"  #  DB service
+      DATABASE_URL: "postgresql://user:password@db:5432/payments_db"  #  DB service
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
     depends_on:
       - rabbitmq
       - db
-
-  notification_service:
-    build:
-      context: ../notifications/ #https://github.com/event-ticketing-system/notifications.git#master  # Replace with your repo
-      dockerfile: ./backend/Dockerfile
-    container_name: notification_service
-    ports:
-      - "8003:8000"
-    networks:
-      - event-platform
-    environment:
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
-    depends_on:
-      - rabbitmq
-    mem_limit: 512m
 
   order_service:
     build:
@@ -67,13 +52,13 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5434:5432"
     networks:
       - event-platform
     environment:
-      POSTGRES_USER: postgres
+      POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: payments
+      POSTGRES_DB: payments_db
 
   order_db: # PostgreSQL service for orders
     image: postgres:13
@@ -98,8 +83,13 @@ services:
       - ../catalog/backend/.env
     ports:
       - "8004:8000"
+    networks:
+      - event-platform
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
     depends_on:
       - cat_mongo_db
+      - rabbitmq
     volumes:
       - .:/app
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -111,6 +101,8 @@ services:
     container_name: catalog_frontend
     ports:
       - "3001:3000"
+    networks:
+      - event-platform
     working_dir: /app # Set the working directory to /app
     command: ["npm", "start"]
     depends_on:
@@ -125,6 +117,8 @@ services:
       - mongo_cat:/data/db
     ports:
       - '6001:27017'
+    networks:
+      - event-platform
 
   auth_backend:
     build:
@@ -135,6 +129,8 @@ services:
       - ../jwt-auth/.env
     ports:
       - "8005:8000"
+    networks:
+      - event-platform
     depends_on:
       - auth_mongo_db
     volumes:
@@ -154,6 +150,8 @@ services:
       - mongo_auth:/data/db
     ports:
       - '6000:27017'
+    networks:
+      - event-platform
 
 networks:
   event-platform:
