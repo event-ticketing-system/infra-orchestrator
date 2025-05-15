@@ -15,7 +15,9 @@ services:
     mem_limit: 1g
 
   payment_backend_service:
-    image: palani1703/payment-backend:latest
+    build:
+      context: ../payments
+      dockerfile: Dockerfile.backend
     container_name: payment_backend
     ports:
       - "8001:8000"
@@ -29,7 +31,9 @@ services:
       - db
 
   payment_frontend_service:
-    image: palani1703/payment-frontend:latest
+    build:
+      context: ../payments
+      dockerfile: Dockerfile.frontend
     container_name: payment_frontend
     ports:
       - "3002:3000"
@@ -41,7 +45,9 @@ services:
       - payment_backend_service
 
   order_service:
-    image: palani1703/order-srv:latest
+    build:
+      context: ../orders
+      dockerfile: Dockerfile
     container_name: order_service
     ports:
       - "8002:8000"  # Expose the order service on port 8002
@@ -83,7 +89,9 @@ services:
       POSTGRES_DB: order_db
 
   catalog_backend:
-    image: palani1703/catalog-backend:latest
+    build:
+      context: ../catalog
+      dockerfile: Dockerfile.backend
     container_name: catalog_backend
     env_file:
       - ../catalog/backend/.env
@@ -101,7 +109,9 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   catalog_frontend:
-    image: palani1703/catalog-frontend:latest
+    build:
+      context: ../catalog
+      dockerfile: Dockerfile.frontend
     container_name: catalog_frontend
     ports:
       - "3001:3000"
